@@ -76,3 +76,5 @@ sftp-config.json
 # Linux trash folder which might appear on any partition or disk
 .Trash-*
 node_modules/
+log/
+npm-debug.log

@@ -4,6 +4,8 @@
   "description": "A simple generic REST API to controll SQLite in a ORM way",
   "main": "index.js",
   "scripts": {
+    "start": "NODE_ENV=production node index.js",
+    "dev": "NODE_ENV=development node index.js",
     "test": "jasmine-node spec/"
   },
   "repository": {
@@ -26,7 +28,16 @@
   },
   "homepage": "https://github.com/mszynka/generic_REST_API#readme",
   "dependencies": {
+    "body-parser": "^1.15.0",
+    "compression": "^1.6.1",
+    "connect": "^3.4.1",
+    "connect-timeout": "^1.7.0",
     "express": "^4.13.4",
+    "file-stream-rotator": "0.0.6",
+    "fs": "0.0.2",
+    "morgan": "^1.7.0",
+    "node-statsd": "^0.1.1",
+    "response-time": "^2.3.1",
     "sqlite": "0.0.4"
   },
   "devDependencies": {
