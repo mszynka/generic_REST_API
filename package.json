@@ -1,0 +1,28 @@
+{
+  "name": "generic_rest_api",
+  "version": "1.0.0",
+  "description": "A simple generic REST API to controll SQLite in a ORM way",
+  "main": "index.js",
+  "scripts": {
+    "test": "todo jasmine testing"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mszynka/generic_REST_API.git"
+  },
+  "keywords": [
+    "REST",
+    "API",
+    "generic",
+    "API",
+    "js",
+    "es6",
+    "babel"
+  ],
+  "author": "Mateusz Szynka <devmsw12@gmail.com> (http://mszynka.pl)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mszynka/generic_REST_API/issues"
+  },
+  "homepage": "https://github.com/mszynka/generic_REST_API#readme"
+}
