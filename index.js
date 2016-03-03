@@ -10,7 +10,7 @@ var logger = require('./logger.js');
 
 var app = express();
 
-app.use(timeout('5s')); 
+app.use(timeout(con.req_timeout)); 
 logger.log(app);
 
 app.use(bodyParser.json());

@@ -1,123 +1,199 @@
 var con = require('./const.js');
-var sqlite3 = require('sqlite3').verbose();
-var db = new sqlite3.Database(':memory:');
+var seeder = require('./dbseed.js');
+var mongo = require('mongodb');
+var Server = mongo.Server;
+var Db = mongo.Db;
+var BSON = mongo.BSONPure;
 
-var guid = 0;
+// Init connection
+var server = new Server(con.db.host, con.db.port, {
+	auto_reconnect: con.db.auto_reconnect
+});
+var db = new Db(con.db.name, server);
 
-// DB initialization
-db.serialize(function() {
-	db.run("CREATE TABLE [$bindings$] (id INT NOT NULL, tableName TEXT, PRIMARY KEY (id))");
-
-//   var stmt = db.prepare("INSERT INTO lorem VALUES (?)");
-//   for (var i = 0; i < 10; i++) {
-//       stmt.run("Ipsum " + i);
-//   }
-//   stmt.finalize();
-
+// Init database
+db.open(function(err, db) {
+	if (!err) {
+		console.log("Connected to '" + con.db.name + "' database");
+		try {
+			seeder.seed(db);
+		} catch (e) {
+			console.log('Seeder failed');
+			console.log(e);
+		}
+	}
 });
 
-var checkIsOrmTable = (tableName) => { return (String(tableName) === "$bindings$" || String(tableName) === "$temp$") }
+var checkIsOrmTable = (tableName) => {
+	return (String(tableName) === "bindings" || String(tableName) === "temp")
+}
 
-var createIfTableNotExist = (tableName) => {
-	var tableExist = false;
-	db.each(String("SELECT * FROM [$bindings$]"), function(err, row) {
-		if(row.tableName == tableName)
-			tableExist = true;
-  }, () => {
-	  if(!tableExist){
-		  db.exec(String("CREATE TABLE " + tableName + " (id INT NOT NULL, data TEXT, PRIMARY KEY (id))"));
-		  db.run(String("INSERT INTO [$bindings$] (id, tableName) VALUES('" + guid + "','" + tableName + "')"));
-		  guid++;
-		  return true;
-		}
-		return false;
+var bindTableIfNotExists = (tableName) => {
+	db.collection('bindings', function(err, collection) {
+		if (collection !== undefined) {
+			collection.findOne({
+				'tableName': tableName
+			}, function(err, item) {
+				if (!err && item == null) {
+					collection.insert({
+						'tableName': tableName
+					}, {
+						safe: true
+					}, function(err, result) {
+						if (err) {
+							console.log(err);
+						} else {
+							console.log('Success: ' + JSON.stringify(result[0]));
+						}
+					});
+				}
+			});
+		} else
+			console.log("bindTableIfNotExists error");
 	});
 }
 
-var createOrUpdate = (tableName, id, object) => {
-	// 1. Check if table exist
-	// 2. Check if object with id exist
-	// 3. Update or create object
-}
-
 module.exports.orm = {
-	getTables: (req,res) => {
-		var tables = [];
-		db.each("SELECT * FROM [$bindings$]", function(err, row) {
-			tables.push({id: row.id, table: row.tableName});
-	  }, () => { res.send({tables}) });
+	getTables: (req, res) => {
+		db.collection('bindings', function(err, collection) {
+			if (collection !== undefined) {
+				collection.find().toArray(function(err, items) {
+					res.send(items);
+				});
+			} else res.send({
+				items: null
+			});
+		});
 	},
 
-	all: (req,res) => {
-		if(checkIsOrmTable(req.params.table))
+	all: (req, res) => {
+		if (checkIsOrmTable(req.params.table))
 			res.sendStatus(400);
 		else {
-			if(createIfTableNotExist(req.params.table)){
-				res.send({});
-			} else {
-				var collection = [];
-				db.each(String("SELECT * FROM [?]"), {1: req.params.table}, function(err, row){
-					console.log(err, row);
-					if(row !== undefined)
-						collection.push({id: row.id, table: row.data});
-				}, () => { res.send({collection}) });
-			}
+			bindTableIfNotExists(req.params.table);
+			db.collection(req.params.table, function(err, collection) {
+				if (collection !== undefined) {
+					collection.find().toArray(function(err, items) {
+						res.send({
+							items
+						});
+					});
+				} else res.send({
+					items: null
+				});
+			});
 		}
 	},
 
-	findById: (req,res) => {
-		if(checkIsOrmTable(req.params.table))
+	findById: (req, res) => {
+		if (checkIsOrmTable(req.params.table))
 			res.sendStatus(400);
 		else {
-			if(createIfTableNotExist(req.params.table)){
-				res.send({});
-			} else {
-				var collection = [];
-				db.each(String("SELECT * FROM [?] WHERE id = ?"), {1: req.params.table, 2: req.params.id}, function(err, row){
-					if(row !== undefined)
-						collection.push({id: row.id, table: row.data});
-				}, () => { res.send({collection}) });
-			}
+			bindTableIfNotExists(req.params.table);
+			var id = req.params.id;
+			db.collection(req.params.table, function(err, collection) {
+				if (collection !== undefined) {
+					collection.findOne({
+						'_id': new BSON.ObjectID(id)
+					}, function(err, item) {
+						res.send({
+							item
+						});
+					});
+				} else res.send({
+					item: null
+				});
+			});
 		}
 	},
 
-	// findByParam: (req,res) => {
-	// 	if(checkIsOrmTable(req.params.table)){
-	// 		res.sendStatus(400);
-	// 		return;
-	// 	}
-
-	// 	res.send("findByParam");
-	// },
-
-	add: (req,res) => {
-		if(checkIsOrmTable(req.params.table)){
+	add: (req, res) => {
+		if (checkIsOrmTable(req.params.table)) {
 			res.sendStatus(400);
 		} else {
-			createIfTableNotExist(req.params.table);
-			console.log(JSON.stringify(req.body));
-		  db.run(String("INSERT INTO [?] (id, data) VALUES('?','?')"), {1: req.params.table, 2: guid, 3: JSON.stringify(req.body)}, () => {
-		  	guid++;
-		  	res.send("Probably correct");
-		  });
+			bindTableIfNotExists(req.params.table);
+			var data = req.body;
+			db.collection(req.params.table, function(err, collection) {
+				if (collection !== undefined) {
+					collection.insert({
+						'data': data
+					}, {
+						safe: true
+					}, function(err, result) {
+						if (err) {
+							console.log(err);
+							res.send({
+								'error': 'An error has occurred'
+							});
+						} else {
+							console.log('Success: ' + JSON.stringify(result[0]));
+							res.send(data);
+						}
+					});
+				} else res.send({
+					'message': 'Collection empty!'
+				});
+			});
 		}
 	},
 
-	update: (req,res) => {
-		if(checkIsOrmTable(req.params.table)){
+	update: (req, res) => {
+		if (checkIsOrmTable(req.params.table)) {
 			res.sendStatus(400);
-			return;
+		} else {
+			bindTableIfNotExists(req.params.table);
+			var id = req.params.id;
+			var data = req.body;
+			db.collection(req.params.table, function(err, collection) {
+				if (!err) {
+					collection.update({
+						'_id': new BSON.ObjectID(id)
+					}, data, {
+						safe: true
+					}, function(err, result) {
+						if (err) {
+							console.log('Error updating: ' + err);
+							res.send({
+								'error': 'An error has occurred'
+							});
+						} else {
+							console.log('' + result + ' document(s) updated');
+							res.send(data);
+						}
+					});
+				} else res.send({
+					'error': 'An error has occurred - ' + err
+				});
+			});
 		}
-
-		res.send("update");
 	},
 
-	delete: (req,res) => {
-		if(checkIsOrmTable(req.params.table)){
+	delete: (req, res) => {
+		if (checkIsOrmTable(req.params.table)) {
 			res.sendStatus(400);
-			return;
+		} else {
+			bindTableIfNotExists(req.params.table);
+			var id = req.params.id;
+			db.collection(req.params.table, function(err, collection) {
+				if (!err) {
+					collection.remove({
+						'_id': new BSON.ObjectID(id)
+					}, {
+						safe: true
+					}, function(err, result) {
+						if (err) {
+							res.send({
+								'error': 'An error has occurred - ' + err
+							});
+						} else {
+							console.log('' + result + ' document(s) deleted');
+							res.send(req.body);
+						}
+					});
+				} else res.send({
+					'error': 'An error has occurred - ' + err
+				});
+			});
 		}
-
-		res.send("delete");
 	}
 }
