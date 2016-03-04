@@ -3,7 +3,7 @@ var seeder = require('./dbseed.js');
 var mongo = require('mongodb');
 var Server = mongo.Server;
 var Db = mongo.Db;
-var BSON = mongo.BSONPure;
+var BSON = require('bson');
 
 // Init connection
 var server = new Server(con.db.host, con.db.port, {
@@ -53,6 +53,15 @@ var bindTableIfNotExists = (tableName) => {
 	});
 }
 
+var wrapper = (req, res, callback) => {
+	if (checkIsOrmTable(req.params.table))
+		res.sendStatus(400);
+	else {
+		bindTableIfNotExists(req.params.table);
+		callback(req, res);
+	}
+}
+
 module.exports.orm = {
 	getTables: (req, res) => {
 		db.collection('bindings', function(err, collection) {
@@ -67,10 +76,7 @@ module.exports.orm = {
 	},
 
 	all: (req, res) => {
-		if (checkIsOrmTable(req.params.table))
-			res.sendStatus(400);
-		else {
-			bindTableIfNotExists(req.params.table);
+		wrapper(req, res, (req, res) => {
 			db.collection(req.params.table, function(err, collection) {
 				if (collection !== undefined) {
 					collection.find().toArray(function(err, items) {
@@ -82,17 +88,14 @@ module.exports.orm = {
 					items: null
 				});
 			});
-		}
+		});
 	},
 
 	findById: (req, res) => {
-		if (checkIsOrmTable(req.params.table))
-			res.sendStatus(400);
-		else {
-			bindTableIfNotExists(req.params.table);
+		wrapper(req, res, (req, res) => {
 			var id = req.params.id;
-			db.collection(req.params.table, function(err, collection) {
-				if (collection !== undefined) {
+			db.collection(String(req.params.table), function(err, collection) {
+				if (collection != undefined) {
 					collection.findOne({
 						'_id': new BSON.ObjectID(id)
 					}, function(err, item) {
@@ -104,14 +107,11 @@ module.exports.orm = {
 					item: null
 				});
 			});
-		}
+		});
 	},
 
 	add: (req, res) => {
-		if (checkIsOrmTable(req.params.table)) {
-			res.sendStatus(400);
-		} else {
-			bindTableIfNotExists(req.params.table);
+		wrapper(req, res, (req, res) => {
 			var data = req.body;
 			db.collection(req.params.table, function(err, collection) {
 				if (collection !== undefined) {
@@ -126,7 +126,6 @@ module.exports.orm = {
 								'error': 'An error has occurred'
 							});
 						} else {
-							console.log('Success: ' + JSON.stringify(result[0]));
 							res.send(data);
 						}
 					});
@@ -134,14 +133,11 @@ module.exports.orm = {
 					'message': 'Collection empty!'
 				});
 			});
-		}
+		});
 	},
 
 	update: (req, res) => {
-		if (checkIsOrmTable(req.params.table)) {
-			res.sendStatus(400);
-		} else {
-			bindTableIfNotExists(req.params.table);
+		wrapper(req, res, (req, res) => {
 			var id = req.params.id;
 			var data = req.body;
 			db.collection(req.params.table, function(err, collection) {
@@ -157,7 +153,6 @@ module.exports.orm = {
 								'error': 'An error has occurred'
 							});
 						} else {
-							console.log('' + result + ' document(s) updated');
 							res.send(data);
 						}
 					});
@@ -165,14 +160,11 @@ module.exports.orm = {
 					'error': 'An error has occurred - ' + err
 				});
 			});
-		}
+		});
 	},
 
 	delete: (req, res) => {
-		if (checkIsOrmTable(req.params.table)) {
-			res.sendStatus(400);
-		} else {
-			bindTableIfNotExists(req.params.table);
+		wrapper(req, res, (req, res) => {
 			var id = req.params.id;
 			db.collection(req.params.table, function(err, collection) {
 				if (!err) {
@@ -186,7 +178,6 @@ module.exports.orm = {
 								'error': 'An error has occurred - ' + err
 							});
 						} else {
-							console.log('' + result + ' document(s) deleted');
 							res.send(req.body);
 						}
 					});
@@ -194,6 +185,6 @@ module.exports.orm = {
 					'error': 'An error has occurred - ' + err
 				});
 			});
-		}
+		});
 	}
 }
