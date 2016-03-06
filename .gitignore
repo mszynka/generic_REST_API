@@ -78,3 +78,4 @@ sftp-config.json
 node_modules/
 log/
 npm-debug.log
+token.js
